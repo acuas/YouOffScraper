@@ -1,0 +1,8 @@
+.idea/
+tmp/
+.go/
+.air
+.air.linux.conf
+Dockerfile
+docker-compose.yml
+.env
