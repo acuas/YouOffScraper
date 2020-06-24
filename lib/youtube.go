@@ -3,10 +3,14 @@ package lib
 import (
 	"context"
 	"flag"
+	"fmt"
+	ydr "github.com/kkdai/youtube"
 	"google.golang.org/api/option"
-	"log"
-	"strings"
 	"google.golang.org/api/youtube/v3"
+	"log"
+	"os/user"
+	"path/filepath"
+	"strings"
 )
 
 // YouTubeSvc is the service which it is used by the scraper
@@ -74,7 +78,10 @@ func (channel *YouTubeChannel) ScrapeVideos() {
 		log.Fatalln(err)
 	}
 
-
+	usr, _ := user.Current()
+	currentDir := fmt.Sprintf("%v/Movies/youtubedr", usr.HomeDir)
+	log.Println("download to dir=", currentDir)
+	y := ydr.NewYoutube(true)
 	for _, item := range response.Items {
 		video := YouTubeVideo{
 			VideoId: item.Id.VideoId,
@@ -85,6 +92,11 @@ func (channel *YouTubeChannel) ScrapeVideos() {
 			ChannelTitle: item.Snippet.ChannelTitle,
 		}
 
+		y.DecodeURL(fmt.Sprintf("https://www.youtube.com/watch?v=%v", video.VideoId))
+		if //noinspection GoFunctionCall
+		err := y.StartDownload(filepath.Join(currentDir, video.VideoId + ".mp4")); err != nil {
+			log.Fatalln("err: ", err)
+		}
 		log.Println(video)
 	}
 }
