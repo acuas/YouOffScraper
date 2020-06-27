@@ -16,6 +16,26 @@ services:
       - 0.0.0.0:8000:8000
     networks:
       - development
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      - MINIO_ACCESS_KEY=acces_key_development
+      - MINIO_SECRET_KEY=secret_key_development
+    volumes:
+    - ./Movies:/data
+    ports:
+    - 0.0.0.0:9000:9000
+    command: server /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      development:
+        aliases:
+          - youoffminio
 
 networks:
   development:

@@ -2,9 +2,12 @@ package main
 
 import (
 	"github.com/joho/godotenv"
+	zerolog "github.com/rs/zerolog/log"
+	"github.com/rylio/ytdl"
 	"github.com/youoffcrawler/config"
 	"github.com/youoffcrawler/lib"
 	"log"
+	"net/http"
 )
 
 
@@ -20,6 +23,10 @@ func main() {
 	// Load env variables by config package
 	lib.App = &lib.Application{
 		Config: config.New(),
+		YouTubeClient: &ytdl.Client{
+			HTTPClient: http.DefaultClient,
+			Logger: zerolog.Logger,
+		},
 	}
 
 	lib.SetupYouTubeSvc()

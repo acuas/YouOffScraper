@@ -4,13 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	ydr "github.com/kkdai/youtube"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 	"log"
+	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
+	"github.com/minio/minio-go/v6"
+	"time"
 )
 
 // YouTubeSvc is the service which it is used by the scraper
@@ -81,8 +83,23 @@ func (channel *YouTubeChannel) ScrapeVideos() {
 	usr, _ := user.Current()
 	currentDir := fmt.Sprintf("%v/Movies/youtubedr", usr.HomeDir)
 	log.Println("download to dir=", currentDir)
-	y := ydr.NewYoutube(true)
+	client := App.YouTubeClient
+
+	endpoint := "youoffminio:9000"
+	accessKeyID := "acces_key_development"
+	secretAccessKey := "secret_key_development"
+	useSSL := false
+
+	// Initialize minio client object
+	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, useSSL)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+
+	log.Printf("%v\n", minioClient)
 	for _, item := range response.Items {
+		// Decode item data
 		video := YouTubeVideo{
 			VideoId: item.Id.VideoId,
 			ChannelId: item.Snippet.ChannelId,
@@ -92,11 +109,26 @@ func (channel *YouTubeChannel) ScrapeVideos() {
 			ChannelTitle: item.Snippet.ChannelTitle,
 		}
 
-		y.DecodeURL(fmt.Sprintf("https://www.youtube.com/watch?v=%v", video.VideoId))
-		if //noinspection GoFunctionCall
-		err := y.StartDownload(filepath.Join(currentDir, video.VideoId + ".mp4")); err != nil {
-			log.Fatalln("err: ", err)
+		// Download video
+		ctx := context.Background()
+		vid, err := client.GetVideoInfo(ctx, fmt.Sprintf("https://www.youtube.com/watch?v=%v", video.VideoId))
+		if err != nil {
+			log.Println("Failed to get video info")
+			return
 		}
-		log.Println(video)
+		objectName := video.ChannelId + "/" + video.VideoId + ".mp4"
+		pathToVideo := filepath.Join(currentDir, objectName)
+		file, _ := os.Create(pathToVideo)
+		client.Download(ctx, vid, vid.Formats[0], file)
+
+		// Upload the video to s3
+		_, err = minioClient.FPutObject("youtube", objectName, pathToVideo, minio.PutObjectOptions{ContentType: "video/mp4"})
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		log.Printf("Succes upload")
+		file.Close()
+		time.Sleep(120000)
 	}
 }
