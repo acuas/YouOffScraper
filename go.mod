@@ -5,7 +5,9 @@ go 1.14
 require (
 	cloud.google.com/go v0.59.0 // indirect
 	github.com/antchfx/xpath v1.1.9 // indirect
+	github.com/go-ini/ini v1.57.0 // indirect
 	github.com/joho/godotenv v1.3.0
+	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/minio/minio-go/v6 v6.0.57
 	github.com/rs/zerolog v1.19.0
 	github.com/rylio/ytdl v0.6.3

@@ -22,6 +22,7 @@ services:
     environment:
       - MINIO_ACCESS_KEY=acces_key_development
       - MINIO_SECRET_KEY=secret_key_development
+      - MINIO_REGION_NAME=ro-south
     volumes:
     - ./Movies:/data
     ports:

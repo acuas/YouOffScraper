@@ -2,24 +2,27 @@ package lib
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
-	"google.golang.org/api/option"
-	"google.golang.org/api/youtube/v3"
 	"log"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
-	"github.com/minio/minio-go/v6"
 	"time"
+
+	"github.com/minio/minio-go/v6"
+	"google.golang.org/api/option"
+	"google.golang.org/api/youtube/v3"
 )
 
 // YouTubeSvc is the service which it is used by the scraper
 // to get url of videos from a chanel
 var YouTubeSvc *youtube.Service
 
-func SetupYouTubeSvc () {
+func SetupYouTubeSvc() {
 	ctx := context.Background()
 	var err error
 	YouTubeSvc, err = youtube.NewService(ctx, option.WithAPIKey(App.Config.YTApiKey))
@@ -28,7 +31,7 @@ func SetupYouTubeSvc () {
 	}
 }
 
-
+// YouTubeVideo is the structure where we store details about a YouTube video
 type YouTubeVideo struct {
 	VideoId      string `json:"videoId"`
 	ChannelId    string `json:"channelId"`
@@ -36,6 +39,82 @@ type YouTubeVideo struct {
 	Title        string `json:"title"`
 	Description  string `json:"description"`
 	ChannelTitle string `json:"channelTitle"`
+}
+
+// NewVideoFromUrl create a YouTubeVideo filling its field calling
+// the YouTube API
+func NewVideoFromUrl(urlStr string) (*YouTubeVideo, error){
+	// Parse the video url
+	video := &YouTubeVideo{}
+	parsedUrl, err := url.Parse(urlStr)
+	if err != nil {
+		log.Println(err)
+		return video, err
+	}
+	q := parsedUrl.Query()
+	video.VideoId = q.Get("v")
+	if video.VideoId == "" {
+		return video, errors.New("The url isn't valid!")
+	}
+
+	// Query the YouTube API
+	res, err := YouTubeSvc.Videos.List([]string{"snippet"}).Id(video.VideoId).Do()
+	if err != nil {
+		log.Println(err)
+		return video, err
+	}
+
+	if len(res.Items) > 1 {
+		return video, errors.New("Too many videos! Something is wrong!")
+	}
+
+	item := res.Items[0]
+	video.VideoId = item.Id
+	video.ChannelTitle = item.Snippet.ChannelTitle
+	video.ChannelId = item.Snippet.ChannelId
+	video.Description = item.Snippet.Description
+	video.Title = item.Snippet.Title
+	video.PublishedAt = item.Snippet.PublishedAt
+
+	return video, nil
+}
+
+func (video *YouTubeVideo) Download() error {
+	if video.VideoId == "" || video.ChannelId == "" {
+		return errors.New("Scraper doesn't have details about the video!")
+	}
+
+	usr, _ := user.Current()
+	currentDir := fmt.Sprintf("%v/Movies/youtubedr", usr.HomeDir)
+	// Attempt to create the directory and ignore any issues
+	_ = os.Mkdir(currentDir+"/"+video.ChannelId, os.ModeDir)
+
+	var err error
+	ctx := context.Background()
+	vid, err := App.YouTubeClient.GetVideoInfo(ctx, fmt.Sprintf("https://www.youtube.com/watch?v=%v", video.VideoId))
+	if err != nil {
+		log.Println("Failed to get video info")
+		return err
+	}
+
+	objectName := video.ChannelId + "/" + video.VideoId + ".mp4"
+	pathToVideo := filepath.Join(currentDir, objectName)
+	file, _ := os.Create(pathToVideo)
+	defer file.Close()
+	err = App.YouTubeClient.Download(ctx, vid, vid.Formats[0], file)
+	if err != nil {
+		log.Println("wow" + err.Error())
+		return err
+	}
+
+	// Upload the video to s3
+	_, err = App.MinioClient.FPutObject(App.Config.MinioBucketName, objectName, pathToVideo, minio.PutObjectOptions{ContentType: "video/mp4"})
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Printf("Succes upload of video %v to S3", video.VideoId)
+	return nil
 }
 
 type YouTubeChannel struct {
@@ -65,7 +144,7 @@ func (channel *YouTubeChannel) NewChannelFromUrl(url string) {
 	}
 }
 
-func (channel *YouTubeChannel) ScrapeVideos() {
+func (channel *YouTubeChannel) ScrapeChannel() {
 	maxResults := flag.Int64("max-results", 50, "Max Youtube results")
 	videoSyndicated := flag.String("videoSyndicated", "true", "Search to only videos that can be played outside youtube.com")
 	call := YouTubeSvc.Search.List([]string{"snippet"}).
@@ -80,55 +159,22 @@ func (channel *YouTubeChannel) ScrapeVideos() {
 		log.Fatalln(err)
 	}
 
-	usr, _ := user.Current()
-	currentDir := fmt.Sprintf("%v/Movies/youtubedr", usr.HomeDir)
-	log.Println("download to dir=", currentDir)
-	client := App.YouTubeClient
-
-	endpoint := "youoffminio:9000"
-	accessKeyID := "acces_key_development"
-	secretAccessKey := "secret_key_development"
-	useSSL := false
-
-	// Initialize minio client object
-	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, useSSL)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-
-	log.Printf("%v\n", minioClient)
 	for _, item := range response.Items {
 		// Decode item data
-		video := YouTubeVideo{
-			VideoId: item.Id.VideoId,
-			ChannelId: item.Snippet.ChannelId,
-			PublishedAt: item.Snippet.PublishedAt,
-			Title: item.Snippet.Title,
-			Description: item.Snippet.Description,
+		video := &YouTubeVideo{
+			VideoId:      item.Id.VideoId,
+			ChannelId:    item.Snippet.ChannelId,
+			PublishedAt:  item.Snippet.PublishedAt,
+			Title:        item.Snippet.Title,
+			Description:  item.Snippet.Description,
 			ChannelTitle: item.Snippet.ChannelTitle,
 		}
 
 		// Download video
-		ctx := context.Background()
-		vid, err := client.GetVideoInfo(ctx, fmt.Sprintf("https://www.youtube.com/watch?v=%v", video.VideoId))
+		err = video.Download()
 		if err != nil {
-			log.Println("Failed to get video info")
-			return
+			log.Printf("Skip video with id %v", video.VideoId)
 		}
-		objectName := video.ChannelId + "/" + video.VideoId + ".mp4"
-		pathToVideo := filepath.Join(currentDir, objectName)
-		file, _ := os.Create(pathToVideo)
-		client.Download(ctx, vid, vid.Formats[0], file)
-
-		// Upload the video to s3
-		_, err = minioClient.FPutObject("youtube", objectName, pathToVideo, minio.PutObjectOptions{ContentType: "video/mp4"})
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		log.Printf("Succes upload")
-		file.Close()
-		time.Sleep(120000)
+		time.Sleep(time.Hour)
 	}
 }
