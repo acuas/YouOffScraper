@@ -11,6 +11,8 @@ import (
 	"net/http"
 )
 
+///////////////////////////////////////////////////////////////////////////////
+
 // init is invoked before main()
 func init() {
 	// loads valued from .env into the system
@@ -18,6 +20,8 @@ func init() {
 		log.Println("No .env file found")
 	}
 }
+
+///////////////////////////////////////////////////////////////////////////////
 
 func main() {
 	// Load env variables by config package
@@ -60,15 +64,14 @@ func main() {
 		log.Printf("The bucket %v already exists!", lib.App.Config.MinioBucketName)
 	}
 
+	// Start a number of workers to process the workload with concurrency that enables parallelism
+	lib.StartDispatcher(1)
+
+	// Start scraping the channel
 	lib.SetupYouTubeSvc()
-	// test video
-	//vid, err := lib.NewVideoFromUrl("https://www.youtube.com/watch?v=tfid_P8mbhg")
-	//err = vid.Download()
-	//log.Println(vid)
-	//if err != nil {
-	//	log.Println(err)
-	//}
 	youTubeC := &lib.YouTubeChannel{}
 	youTubeC.NewChannelFromUrl("https://www.youtube.com/channel/UC9WayAVqWKIoyg1eN28n9Ug")
 	youTubeC.ScrapeChannel()
 }
+
+///////////////////////////////////////////////////////////////////////////////
