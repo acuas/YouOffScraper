@@ -9,6 +9,7 @@ import (
 	"github.com/youoffcrawler/lib"
 	"log"
 	"net/http"
+	"time"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -65,13 +66,16 @@ func main() {
 	}
 
 	// Start a number of workers to process the workload with concurrency that enables parallelism
-	lib.StartDispatcher(1)
+	lib.StartDispatcher(4)
 
 	// Start scraping the channel
 	lib.SetupYouTubeSvc()
 	youTubeC := &lib.YouTubeChannel{}
 	youTubeC.NewChannelFromUrl("https://www.youtube.com/channel/UC9WayAVqWKIoyg1eN28n9Ug")
 	youTubeC.ScrapeChannel()
+
+	//
+	time.Sleep(time.Hour)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

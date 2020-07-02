@@ -35,7 +35,6 @@ func (w *Worker) Start() {
 				case video := <-w.Work:
 					// Receive a video to download
 					log.Printf("worker%d: Started downloading video %s", w.ID, video.VideoId)
-					log.Println(video)
 					var downloaded = make(chan bool)
 					go video.Download(downloaded)
 					value := <- downloaded
@@ -76,11 +75,8 @@ func StartDispatcher(nworkers int) {
 		for {
 			select {
 			case video := <-VideoQueue:
-				go func() {
-					worker := <- WorkerQueue
-
-					worker <- video
-				}()
+				worker := <- WorkerQueue
+				worker <- video
 			}
 		}
 	}()

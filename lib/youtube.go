@@ -14,7 +14,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // YouTubeSvc is the service which it is used by the scraper
@@ -79,7 +78,6 @@ func NewVideoFromUrl(urlStr string) (*YouTubeVideo, error) {
 }
 
 func (video *YouTubeVideo) Download(finished chan bool) error {
-	log.Println("In download ", video)
 	if video.VideoId == "" || video.ChannelId == "" {
 		finished <- false
 		return errors.New("Scraper doesn't have details about the video!")
@@ -89,26 +87,21 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 	currentDir := fmt.Sprintf("%v/Movies/youtubedr", usr.HomeDir)
 
 	// Attempt to create the directory and ignore any issues
-	_ = os.Mkdir(currentDir+"/"+video.ChannelId, os.ModeDir)
+	_ = os.MkdirAll(currentDir+"/"+video.ChannelId, os.ModeDir)
 
 	var err error
 	ctx := context.Background()
 	vid, err := App.YouTubeClient.GetVideoInfo(ctx, fmt.Sprintf("https://www.youtube.com/watch?v=%v", video.VideoId))
-	log.Println(vid.Title)
 	if err != nil {
 		finished <- false
-		log.Println("Failed to get video info")
 		return err
 	}
 
 	objectName := video.ChannelId + "/" + video.VideoId + ".mp4"
-	log.Println(objectName)
 	pathToVideo := filepath.Join(currentDir, objectName)
 	file, _ := os.Create(pathToVideo)
-	defer file.Close()
 	err = App.YouTubeClient.Download(ctx, vid, vid.Formats[0], file)
 	if err != nil {
-		log.Println(err.Error())
 		return err
 	}
 
@@ -121,6 +114,8 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 
 	finished <- true
 	log.Printf("Succes upload of video %v to S3", video.VideoId)
+	file.Close()
+	os.Remove(pathToVideo)
 	return nil
 }
 
@@ -155,7 +150,7 @@ func (channel *YouTubeChannel) NewChannelFromUrl(url string) {
 var VideoQueue = make(chan YouTubeVideo, 4)
 
 func (channel *YouTubeChannel) ScrapeChannel() {
-	maxResults := flag.Int64("max-results", 50, "Max Youtube results")
+	maxResults := flag.Int64("max-results", 4, "Max Youtube results")
 	videoSyndicated := flag.String("videoSyndicated", "true", "Search to only videos that can be played outside youtube.com")
 	call := YouTubeSvc.Search.List([]string{"snippet"}).
 		ChannelId(channel.Id).
@@ -169,20 +164,37 @@ func (channel *YouTubeChannel) ScrapeChannel() {
 		log.Fatalln(err)
 	}
 
-	for _, item := range response.Items {
-		// Decode item data
-		video := YouTubeVideo{
-			VideoId:      item.Id.VideoId,
-			ChannelId:    item.Snippet.ChannelId,
-			PublishedAt:  item.Snippet.PublishedAt,
-			Title:        item.Snippet.Title,
-			Description:  item.Snippet.Description,
-			ChannelTitle: item.Snippet.ChannelTitle,
+	totalNumberOfVideos := response.PageInfo.TotalResults - 4
+	for totalNumberOfVideos > 0 {
+		for _, item := range response.Items {
+			// Decode item data
+			video := YouTubeVideo{
+				VideoId:      item.Id.VideoId,
+				ChannelId:    item.Snippet.ChannelId,
+				PublishedAt:  item.Snippet.PublishedAt,
+				Title:        item.Snippet.Title,
+				Description:  item.Snippet.Description,
+				ChannelTitle: item.Snippet.ChannelTitle,
+			}
+
+			VideoQueue <- video
 		}
 
-		VideoQueue <- video
-		// Error here: The program ends before workers starts their execution
-		time.Sleep(time.Hour)
-		//video.Download()
+		log.Printf("Go to next page %v", response.NextPageToken)
+		// Go to next page
+		call = YouTubeSvc.Search.List([]string{"snippet"}).
+			ChannelId(channel.Id).
+			Order("date").
+			Type("video").
+			VideoSyndicated(*videoSyndicated).
+			MaxResults(*maxResults).
+			PageToken(response.NextPageToken)
+
+		response, err = call.Do()
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		totalNumberOfVideos -= 4
 	}
 }
