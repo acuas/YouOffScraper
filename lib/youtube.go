@@ -16,6 +16,8 @@ import (
 	"strings"
 )
 
+///////////////////////////////////////////////////////////////////////////////
+
 // YouTubeSvc is the service which it is used by the scraper
 // to get url of videos from a chanel
 var YouTubeSvc *youtube.Service
@@ -29,7 +31,9 @@ func SetupYouTubeSvc() {
 	}
 }
 
-// YouTubeVideo is the structure where we store details about a YouTube video
+///////////////////////////////////////////////////////////////////////////////
+
+// YouTubeVideo is the structure where scraper store details about a YouTube video
 type YouTubeVideo struct {
 	VideoId      string `json:"videoId"`
 	ChannelId    string `json:"channelId"`
@@ -46,7 +50,6 @@ func NewVideoFromUrl(urlStr string) (*YouTubeVideo, error) {
 	video := &YouTubeVideo{}
 	parsedUrl, err := url.Parse(urlStr)
 	if err != nil {
-		log.Println(err)
 		return video, err
 	}
 	q := parsedUrl.Query()
@@ -58,7 +61,6 @@ func NewVideoFromUrl(urlStr string) (*YouTubeVideo, error) {
 	// Query the YouTube API
 	res, err := YouTubeSvc.Videos.List([]string{"snippet"}).Id(video.VideoId).Do()
 	if err != nil {
-		log.Println(err)
 		return video, err
 	}
 
@@ -73,30 +75,44 @@ func NewVideoFromUrl(urlStr string) (*YouTubeVideo, error) {
 	video.Description = item.Snippet.Description
 	video.Title = item.Snippet.Title
 	video.PublishedAt = item.Snippet.PublishedAt
-
 	return video, nil
 }
 
+// Download is the function which check if a video exists in Minio. If it does
+// not exists in the Minio the function will download and upload it to the
+// Minio bucket specified in the configuration file
 func (video *YouTubeVideo) Download(finished chan bool) error {
 	if video.VideoId == "" || video.ChannelId == "" {
 		finished <- false
 		return errors.New("Scraper doesn't have details about the video!")
 	}
 
+	var err error
+	// Check if the object exists in youtube bucket
+	_, err = App.MinioClient.StatObject(
+		App.Config.MinioBucketName,
+		video.ChannelId + "/" + video.VideoId + ".mp4",
+		minio.StatObjectOptions{},
+	)
+
+	if err == nil {
+		log.Printf("Video %v is already in the bucket. Skip.", video.VideoId)
+		finished <- true
+		return nil
+	}
+
+	// Attempt to create a temporary directory and ignore any issues
 	usr, _ := user.Current()
 	currentDir := fmt.Sprintf("%v/Movies/youtubedr", usr.HomeDir)
-
-	// Attempt to create the directory and ignore any issues
 	_ = os.MkdirAll(currentDir+"/"+video.ChannelId, os.ModeDir)
 
-	var err error
+	// Download the video
 	ctx := context.Background()
 	vid, err := App.YouTubeClient.GetVideoInfo(ctx, fmt.Sprintf("https://www.youtube.com/watch?v=%v", video.VideoId))
 	if err != nil {
 		finished <- false
 		return err
 	}
-
 	objectName := video.ChannelId + "/" + video.VideoId + ".mp4"
 	pathToVideo := filepath.Join(currentDir, objectName)
 	file, _ := os.Create(pathToVideo)
@@ -111,14 +127,19 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 		finished <- false
 		log.Fatalln(err)
 	}
-
 	finished <- true
 	log.Printf("Succes upload of video %v to S3", video.VideoId)
+
+	// Remove the video from temporary directory
 	file.Close()
 	os.Remove(pathToVideo)
 	return nil
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+// YouTubeChannel is the structure which is used by scraper to maintain details
+// about a YouTube channel
 type YouTubeChannel struct {
 	Id          string `json:"channelId"`
 	Title       string `json:"channelTitle"`
@@ -127,13 +148,15 @@ type YouTubeChannel struct {
 	PublishedAt string `json:"publishedAt"`
 }
 
-func (channel *YouTubeChannel) NewChannelFromUrl(url string) {
+// NewChannelFromUrl create a YouTubeChannel from a giver url. The function
+// takes the details about the channel using the YouTube Data API
+func (channel *YouTubeChannel) NewChannelFromUrl(url string) error {
 	urlComponents := strings.Split(url, "/")
 	channel.Id = urlComponents[4]
 	call := YouTubeSvc.Channels.List([]string{"snippet"}).Id(channel.Id)
 	response, err := call.Do()
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 
 	for _, item := range response.Items {
@@ -144,13 +167,18 @@ func (channel *YouTubeChannel) NewChannelFromUrl(url string) {
 			channel.PublishedAt = item.Snippet.PublishedAt
 		}
 	}
+	return nil
 }
 
-// A buffered channel that we can send video download requests
+// A buffered channel through we can send video to be downloaded by the workers
 var VideoQueue = make(chan YouTubeVideo, 4)
 
+// Given a YouTube channel the scraper can extract all video from it using this
+// function. The function will iterate over all videos extracting batch of 50
+// videos which represents the maximum results that can be returned by the
+// YouTube Data API
 func (channel *YouTubeChannel) ScrapeChannel() {
-	maxResults := flag.Int64("max-results", 4, "Max Youtube results")
+	maxResults := flag.Int64("max-results", 50, "Max Youtube results")
 	videoSyndicated := flag.String("videoSyndicated", "true", "Search to only videos that can be played outside youtube.com")
 	call := YouTubeSvc.Search.List([]string{"snippet"}).
 		ChannelId(channel.Id).
@@ -164,8 +192,9 @@ func (channel *YouTubeChannel) ScrapeChannel() {
 		log.Fatalln(err)
 	}
 
-	totalNumberOfVideos := response.PageInfo.TotalResults - 4
+	totalNumberOfVideos := response.PageInfo.TotalResults
 	for totalNumberOfVideos > 0 {
+		totalNumberOfVideos -= 50
 		for _, item := range response.Items {
 			// Decode item data
 			video := YouTubeVideo{
@@ -182,19 +211,11 @@ func (channel *YouTubeChannel) ScrapeChannel() {
 
 		log.Printf("Go to next page %v", response.NextPageToken)
 		// Go to next page
-		call = YouTubeSvc.Search.List([]string{"snippet"}).
-			ChannelId(channel.Id).
-			Order("date").
-			Type("video").
-			VideoSyndicated(*videoSyndicated).
-			MaxResults(*maxResults).
-			PageToken(response.NextPageToken)
-
-		response, err = call.Do()
+		response, err = call.PageToken(response.NextPageToken).Do()
 		if err != nil {
 			log.Fatalln(err)
 		}
-
-		totalNumberOfVideos -= 4
 	}
 }
+
+///////////////////////////////////////////////////////////////////////////////
