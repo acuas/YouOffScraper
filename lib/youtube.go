@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -127,8 +128,20 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 		finished <- false
 		log.Fatalln(err)
 	}
-	finished <- true
 	log.Printf("Succes upload of video %v to S3", video.VideoId)
+
+	// Index video in elasticsearch
+	indexObject, err := json.Marshal(video)
+	res, err := App.ES.Index(
+		App.Config.EsIndex,
+		strings.NewReader(string(indexObject)),
+		App.ES.Index.WithPretty(),
+	)
+	fmt.Println(res, err)
+	defer res.Body.Close()
+	log.Printf("Succes indexed video %v in elasticsearch", video.VideoId)
+
+	finished <- true
 
 	// Remove the video from temporary directory
 	file.Close()

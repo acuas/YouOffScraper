@@ -1,14 +1,18 @@
 package main
 
 import (
+	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v6"
 	zerolog "github.com/rs/zerolog/log"
 	"github.com/rylio/ytdl"
 	"github.com/youoffcrawler/config"
 	"github.com/youoffcrawler/lib"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -64,6 +68,36 @@ func main() {
 	} else {
 		log.Printf("The bucket %v already exists!", lib.App.Config.MinioBucketName)
 	}
+
+	// Check connectivity to elasticsearch
+	lib.App.ES, err = elasticsearch7.NewDefaultClient()
+	if err != nil {
+		log.Fatalf("Error creating the client: %s", err)
+	}
+	res, err := lib.App.ES.Info()
+	if err != nil {
+		log.Fatalf("Error getting response from elasticsearch: %s", err)
+	}
+	log.Printf("Checked connectivity to elasticsearch at %v !", time.Now().Format(time.RFC3339))
+	io.Copy(ioutil.Discard, res.Body)
+	defer res.Body.Close()
+
+	// Try to create an index if it's not already present
+	res, err = lib.App.ES.Indices.Create(
+		lib.App.Config.EsIndex,
+		lib.App.ES.Indices.Create.WithBody(strings.NewReader(`{
+			"mappings": {
+				"properties": {
+					"channelId": { "type": "keyword" },
+					"publishedAt": { "type": "date" },
+					"title": { "type": "text" },
+					"description": { "type": "text" },
+					"channelTitle": { "type": "text" }
+				}
+			}
+		}`)),
+	)
+	log.Println(res, err)
 
 	// Start a number of workers to process the workload with concurrency that enables parallelism
 	lib.StartDispatcher(4)

@@ -13,6 +13,7 @@ type Config struct {
 	MinioUseSSL          bool
 	MinioBucketName      string
 	MinioBucketRegion    string
+	EsIndex              string
 }
 
 // New returns a new Config struct
@@ -25,6 +26,7 @@ func New() *Config {
 		MinioUseSSL:          getEnvAsBool("MINIO_USE_SSL", false),
 		MinioBucketName:      getEnv("MINIO_BUCKET_NAME", "youtube"),
 		MinioBucketRegion:    getEnv("MINIO_BUCKET_REGION", ""),
+		EsIndex:              getEnv("ELASTICSEACH_INDEX", "youtube-video"),
 	}
 }
 

@@ -14,8 +14,7 @@ services:
       - ./:/go/src/github.com/youoffcrawler
     ports:
       - 0.0.0.0:8000:8000
-    networks:
-      - development
+    network_mode: host
   minio:
     image: minio/minio:latest
     container_name: minio
