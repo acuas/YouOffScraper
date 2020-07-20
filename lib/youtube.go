@@ -15,6 +15,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,12 +37,12 @@ func SetupYouTubeSvc() {
 
 // YouTubeVideo is the structure where scraper store details about a YouTube video
 type YouTubeVideo struct {
-	VideoId      string `json:"videoId"`
-	ChannelId    string `json:"channelId"`
-	PublishedAt  string `json:"publishedAt"`
-	Title        string `json:"title"`
-	Description  string `json:"description"`
-	ChannelTitle string `json:"channelTitle"`
+	VideoId      string    `json:"-"`
+	ChannelId    string    `json:"channel_id"`
+	PublishedAt  int64 `json:"published_at"`
+	Title        string    `json:"title"`
+	Description  string    `json:"description"`
+	ChannelTitle string    `json:"channel_title"`
 }
 
 // NewVideoFromUrl create a YouTubeVideo filling its field calling
@@ -75,7 +76,8 @@ func NewVideoFromUrl(urlStr string) (*YouTubeVideo, error) {
 	video.ChannelId = item.Snippet.ChannelId
 	video.Description = item.Snippet.Description
 	video.Title = item.Snippet.Title
-	video.PublishedAt = item.Snippet.PublishedAt
+	publishedAt, _ := time.Parse(time.RFC3339, item.Snippet.PublishedAt)
+	video.PublishedAt = publishedAt.Unix()
 	return video, nil
 }
 
@@ -136,6 +138,7 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 		App.Config.EsIndex,
 		strings.NewReader(string(indexObject)),
 		App.ES.Index.WithPretty(),
+		App.ES.Index.WithDocumentID(video.VideoId),
 	)
 	fmt.Println(res, err)
 	defer res.Body.Close()
@@ -210,10 +213,11 @@ func (channel *YouTubeChannel) ScrapeChannel() {
 		totalNumberOfVideos -= 50
 		for _, item := range response.Items {
 			// Decode item data
+			publishedAt, _ := time.Parse(time.RFC3339, item.Snippet.PublishedAt)
 			video := YouTubeVideo{
 				VideoId:      item.Id.VideoId,
 				ChannelId:    item.Snippet.ChannelId,
-				PublishedAt:  item.Snippet.PublishedAt,
+				PublishedAt:  publishedAt.Unix(),
 				Title:        item.Snippet.Title,
 				Description:  item.Snippet.Description,
 				ChannelTitle: item.Snippet.ChannelTitle,

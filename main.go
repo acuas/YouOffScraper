@@ -88,11 +88,11 @@ func main() {
 		lib.App.ES.Indices.Create.WithBody(strings.NewReader(`{
 			"mappings": {
 				"properties": {
-					"channelId": { "type": "keyword" },
-					"publishedAt": { "type": "date" },
+					"channel_id": { "type": "keyword" },
+					"published_at": { "type": "date", "format": "epoch_second"},
 					"title": { "type": "text" },
 					"description": { "type": "text" },
-					"channelTitle": { "type": "text" }
+					"channel_title": { "type": "text" }
 				}
 			}
 		}`)),
@@ -100,7 +100,7 @@ func main() {
 	log.Println(res, err)
 
 	// Start a number of workers to process the workload with concurrency that enables parallelism
-	lib.StartDispatcher(4)
+	lib.StartDispatcher(1)
 
 	// Start scraping the channel
 	lib.SetupYouTubeSvc()
