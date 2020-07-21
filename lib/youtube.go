@@ -24,6 +24,7 @@ import (
 // to get url of videos from a chanel
 var YouTubeSvc *youtube.Service
 
+// SetupYouTubeSvc instantiate the variable YouTubeSvc
 func SetupYouTubeSvc() {
 	ctx := context.Background()
 	var err error
@@ -39,7 +40,7 @@ func SetupYouTubeSvc() {
 type YouTubeVideo struct {
 	VideoId      string    `json:"-"`
 	ChannelId    string    `json:"channel_id"`
-	PublishedAt  int64 `json:"published_at"`
+	PublishedAt  int64     `json:"published_at"`
 	Title        string    `json:"title"`
 	Description  string    `json:"description"`
 	ChannelTitle string    `json:"channel_title"`
@@ -83,7 +84,8 @@ func NewVideoFromUrl(urlStr string) (*YouTubeVideo, error) {
 
 // Download is the function which check if a video exists in Minio. If it does
 // not exists in the Minio the function will download and upload it to the
-// Minio bucket specified in the configuration file
+// Minio bucket specified in the configuration file. If the upload was a success
+// the function is going to index the youtube structure into an elasticsearch
 func (video *YouTubeVideo) Download(finished chan bool) error {
 	if video.VideoId == "" || video.ChannelId == "" {
 		finished <- false
@@ -91,13 +93,13 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 	}
 
 	var err error
+
 	// Check if the object exists in youtube bucket
 	_, err = App.MinioClient.StatObject(
 		App.Config.MinioBucketName,
 		video.ChannelId + "/" + video.VideoId + ".mp4",
 		minio.StatObjectOptions{},
 	)
-
 	if err == nil {
 		log.Printf("Video %v is already in the bucket. Skip.", video.VideoId)
 		finished <- true
@@ -128,7 +130,8 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 	_, err = App.MinioClient.FPutObject(App.Config.MinioBucketName, objectName, pathToVideo, minio.PutObjectOptions{ContentType: "video/mp4"})
 	if err != nil {
 		finished <- false
-		log.Fatalln(err)
+		log.Println(err)
+		return err
 	}
 	log.Printf("Succes upload of video %v to S3", video.VideoId)
 
@@ -140,9 +143,13 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 		App.ES.Index.WithPretty(),
 		App.ES.Index.WithDocumentID(video.VideoId),
 	)
-	fmt.Println(res, err)
+	if err == nil {
+		log.Printf("Succes indexed video %v in elasticsearch", video.VideoId)
+	} else {
+		log.Println(err)
+		return err
+	}
 	defer res.Body.Close()
-	log.Printf("Succes indexed video %v in elasticsearch", video.VideoId)
 
 	finished <- true
 

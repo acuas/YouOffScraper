@@ -2,18 +2,21 @@ package main
 
 import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
+	"github.com/gofiber/fiber"
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v6"
 	zerolog "github.com/rs/zerolog/log"
 	"github.com/rylio/ytdl"
 	"github.com/youoffcrawler/config"
 	"github.com/youoffcrawler/lib"
+	. "github.com/youoffcrawler/api/v1"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+    . "gitlab.com/c0b/go-ordered-json"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -38,6 +41,7 @@ func main() {
 		},
 	}
 
+
 	// Initialize MinIO client
 	var err error
 	lib.App.MinioClient, err = minio.New(
@@ -56,6 +60,7 @@ func main() {
 		log.Fatal("Error in checking if the bucket exists in MinIO!")
 	}
 
+	log.Printf("Checked connectivity to MinIO at %v !", time.Now().Format(time.RFC3339))
 	// If the bucket doesn't exist the crawler is going to create it
 	if !found {
 		log.Println("Bucket doesn't exist, so the crawler will create it, according to your env variable MINIO_BUCKET")
@@ -68,6 +73,7 @@ func main() {
 	} else {
 		log.Printf("The bucket %v already exists!", lib.App.Config.MinioBucketName)
 	}
+
 
 	// Check connectivity to elasticsearch
 	lib.App.ES, err = elasticsearch7.NewDefaultClient()
@@ -83,7 +89,7 @@ func main() {
 	defer res.Body.Close()
 
 	// Try to create an index if it's not already present
-	res, err = lib.App.ES.Indices.Create(
+	lib.App.ES.Indices.Create(
 		lib.App.Config.EsIndex,
 		lib.App.ES.Indices.Create.WithBody(strings.NewReader(`{
 			"mappings": {
@@ -97,19 +103,49 @@ func main() {
 			}
 		}`)),
 	)
-	log.Println(res, err)
+
 
 	// Start a number of workers to process the workload with concurrency that enables parallelism
 	lib.StartDispatcher(1)
 
-	// Start scraping the channel
 	lib.SetupYouTubeSvc()
-	youTubeC := &lib.YouTubeChannel{}
-	youTubeC.NewChannelFromUrl("https://www.youtube.com/channel/UC9WayAVqWKIoyg1eN28n9Ug")
-	youTubeC.ScrapeChannel()
 
-	//
-	time.Sleep(time.Hour)
+	// Setup fiber server
+	lib.App.Srv = fiber.New()
+
+	lib.App.Srv.Get("/", func(c *fiber.Ctx) {
+		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+			{Key: "ok", Value: 1},
+			{Key: "data", Value: NewOrderedMapFromKVPairs([]*KVPair{
+				{Key: "name", Value: "api"},
+				{Key: "path", Value: "/api"},
+			})},
+		}))
+		c.Status(200)
+	})
+
+	lib.App.Srv.Get("/api", func(c *fiber.Ctx) {
+		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+			{Key: "ok", Value: 1},
+			{Key: "data", Value: NewOrderedMapFromKVPairs([]*KVPair{
+				{Key: "name", Value: "v1"},
+				{Key: "path", Value: "/v1"},
+			})},
+		}))
+		c.Status(200)
+	})
+
+	// Organize the API using a Group
+	api := lib.App.Srv.Group("/api")
+
+	// Mount V1 api
+	V1(api)
+
+	// TODO: Make this configurable via env
+	lib.App.Srv.Listen(8000)
+	//youTubeC := &lib.YouTubeChannel{}
+	//youTubeC.NewChannelFromUrl("https://www.youtube.com/channel/UC9WayAVqWKIoyg1eN28n9Ug")
+	//youTubeC.ScrapeChannel()
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,9 @@ import (
 	"strconv"
 )
 
+///////////////////////////////////////////////////////////////////////////////
+
+// Config contains environment variables used by this prject
 type Config struct {
 	YTApiKey             string
 	MinioEndpoint        string
@@ -58,3 +61,5 @@ func getEnvAsBool(name string, defaultValue bool) bool {
 
 	return defaultValue
 }
+
+///////////////////////////////////////////////////////////////////////////////

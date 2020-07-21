@@ -2,6 +2,9 @@ package lib
 
 import "log"
 
+///////////////////////////////////////////////////////////////////////////////
+
+// Represents a worker that can be added to the queue of workers
 type Worker struct {
 	ID          int
 	Work        chan YouTubeVideo
@@ -58,8 +61,11 @@ func (w *Worker) Stop() {
 	}()
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
 var WorkerQueue chan chan YouTubeVideo
 
+// StartDispatcher starts a number of n workers.
 func StartDispatcher(nworkers int) {
 	// First, initialize the channel we are going to but the workers' work channels into.
 	WorkerQueue = make(chan chan YouTubeVideo, nworkers)
@@ -81,3 +87,5 @@ func StartDispatcher(nworkers int) {
 		}
 	}()
 }
+
+///////////////////////////////////////////////////////////////////////////////
