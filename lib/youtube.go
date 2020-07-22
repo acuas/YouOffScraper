@@ -38,12 +38,12 @@ func SetupYouTubeSvc() {
 
 // YouTubeVideo is the structure where scraper store details about a YouTube video
 type YouTubeVideo struct {
-	VideoId      string    `json:"-"`
-	ChannelId    string    `json:"channel_id"`
-	PublishedAt  int64     `json:"published_at"`
-	Title        string    `json:"title"`
-	Description  string    `json:"description"`
-	ChannelTitle string    `json:"channel_title"`
+	VideoId      string `json:"-"`
+	ChannelId    string `json:"channel_id"`
+	PublishedAt  int64  `json:"published_at"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	ChannelTitle string `json:"channel_title"`
 }
 
 // NewVideoFromUrl create a YouTubeVideo filling its field calling
@@ -97,7 +97,7 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 	// Check if the object exists in youtube bucket
 	_, err = App.MinioClient.StatObject(
 		App.Config.MinioBucketName,
-		video.ChannelId + "/" + video.VideoId + ".mp4",
+		video.ChannelId+"/"+video.VideoId+".mp4",
 		minio.StatObjectOptions{},
 	)
 	if err == nil {

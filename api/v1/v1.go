@@ -1,12 +1,17 @@
 package v1
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber"
+	"github.com/youoffcrawler/lib"
 	. "gitlab.com/c0b/go-ordered-json"
 )
 
 func V1(api *fiber.Group) {
-	_ = api.Group("/v1", func(c *fiber.Ctx) {
+	v1 := api.Group("/v1")
+
+	v1.Get("/", func(c *fiber.Ctx) {
 		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
 			{Key: "ok", Value: 1},
 			{Key: "data", Value: NewOrderedMapFromKVPairs([]*KVPair{
@@ -19,5 +24,49 @@ func V1(api *fiber.Group) {
 				})},
 			})},
 		}))
+		c.SendStatus(fiber.StatusOK)
+	})
+
+	v1.Post("/scrape", func(c *fiber.Ctx) {
+		t := c.Query("type")
+		id := c.Query("id")
+		if id == "" {
+			panic("Parameter id must be not null!")
+		}
+
+		switch t {
+		case "channel":
+			{
+				youTubeChan := &lib.YouTubeChannel{}
+				err := youTubeChan.NewChannelFromUrl(fmt.Sprintf("https://www.youtube.com/channel/%v", id))
+				if err != nil {
+					panic(err)
+				}
+				go youTubeChan.ScrapeChannel()
+			}
+		case "video":
+			{
+				youTubeVid, err := lib.NewVideoFromUrl(fmt.Sprintf("https://www.youtube.com/watch?v=%v", id))
+				if err != nil {
+					panic(err)
+				}
+
+				go youTubeVid.Download(make(chan bool))
+			}
+		default:
+			{
+				panic("Type must be channel or video!")
+			}
+		}
+
+		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+			{Key: "ok", Value: 1},
+			{Key: "data", Value: NewOrderedMapFromKVPairs([]*KVPair{
+				{Key: "bucket", Value: lib.App.Config.MinioBucketName},
+				{Key: "minio_path", Value: fmt.Sprintf("%v/%v", t, id)},
+				{Key: "info", Value: "Your channel/video will be soon available in Minio."},
+			})},
+		}))
+		c.SendStatus(fiber.StatusCreated)
 	})
 }

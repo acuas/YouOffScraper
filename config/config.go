@@ -9,14 +9,20 @@ import (
 
 // Config contains environment variables used by this prject
 type Config struct {
+	// YouTube Data API key v3
 	YTApiKey             string
+	// Minio setting
 	MinioEndpoint        string
 	MinioAccessKeyID     string
 	MinioSecretAccessKey string
 	MinioUseSSL          bool
 	MinioBucketName      string
 	MinioBucketRegion    string
+	// Elasticsearch Index
 	EsIndex              string
+	// fiber settings
+	FiberPort            int
+	NWorkers             int
 }
 
 // New returns a new Config struct
@@ -30,6 +36,8 @@ func New() *Config {
 		MinioBucketName:      getEnv("MINIO_BUCKET_NAME", "youtube"),
 		MinioBucketRegion:    getEnv("MINIO_BUCKET_REGION", ""),
 		EsIndex:              getEnv("ELASTICSEACH_INDEX", "youtube-video"),
+		FiberPort:            getEnvAsInt("FIBER_PORT", 8000),
+		NWorkers:             getEnvAsInt("N_WORKERS", 2),
 	}
 }
 

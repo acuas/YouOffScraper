@@ -1,22 +1,24 @@
 package main
 
 import (
-	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
-	"github.com/gofiber/fiber"
-	"github.com/joho/godotenv"
-	"github.com/minio/minio-go/v6"
-	zerolog "github.com/rs/zerolog/log"
-	"github.com/rylio/ytdl"
-	"github.com/youoffcrawler/config"
-	"github.com/youoffcrawler/lib"
-	. "github.com/youoffcrawler/api/v1"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
 	"time"
-    . "gitlab.com/c0b/go-ordered-json"
+
+	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
+	"github.com/gofiber/fiber"
+	"github.com/gofiber/fiber/middleware"
+	"github.com/joho/godotenv"
+	"github.com/minio/minio-go/v6"
+	zerolog "github.com/rs/zerolog/log"
+	"github.com/rylio/ytdl"
+	. "github.com/youoffcrawler/api/v1"
+	"github.com/youoffcrawler/config"
+	"github.com/youoffcrawler/lib"
+	. "gitlab.com/c0b/go-ordered-json"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -40,7 +42,6 @@ func main() {
 			Logger:     zerolog.Logger,
 		},
 	}
-
 
 	// Initialize MinIO client
 	var err error
@@ -74,7 +75,6 @@ func main() {
 		log.Printf("The bucket %v already exists!", lib.App.Config.MinioBucketName)
 	}
 
-
 	// Check connectivity to elasticsearch
 	lib.App.ES, err = elasticsearch7.NewDefaultClient()
 	if err != nil {
@@ -104,14 +104,28 @@ func main() {
 		}`)),
 	)
 
-
 	// Start a number of workers to process the workload with concurrency that enables parallelism
-	lib.StartDispatcher(1)
+	lib.StartDispatcher(lib.App.Config.NWorkers)
 
 	lib.SetupYouTubeSvc()
 
 	// Setup fiber server
 	lib.App.Srv = fiber.New()
+
+	// Use default logger
+	lib.App.Srv.Use(middleware.Logger())
+
+	// Enable recovering from panic
+	lib.App.Srv.Settings.ErrorHandler = func(c *fiber.Ctx, err error) {
+		log.Println(err.Error())
+		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+			{Key: "ok", Value: 0},
+			{Key: "error", Value: err.Error()},
+		}))
+		c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	lib.App.Srv.Use(middleware.Recover())
 
 	lib.App.Srv.Get("/", func(c *fiber.Ctx) {
 		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
@@ -121,7 +135,7 @@ func main() {
 				{Key: "path", Value: "/api"},
 			})},
 		}))
-		c.Status(200)
+		c.SendStatus(fiber.StatusOK)
 	})
 
 	lib.App.Srv.Get("/api", func(c *fiber.Ctx) {
@@ -132,7 +146,7 @@ func main() {
 				{Key: "path", Value: "/v1"},
 			})},
 		}))
-		c.Status(200)
+		c.SendStatus(fiber.StatusOK)
 	})
 
 	// Organize the API using a Group
@@ -141,11 +155,17 @@ func main() {
 	// Mount V1 api
 	V1(api)
 
-	// TODO: Make this configurable via env
-	lib.App.Srv.Listen(8000)
-	//youTubeC := &lib.YouTubeChannel{}
-	//youTubeC.NewChannelFromUrl("https://www.youtube.com/channel/UC9WayAVqWKIoyg1eN28n9Ug")
-	//youTubeC.ScrapeChannel()
+	// 404 Handler
+	lib.App.Srv.Use(func(c *fiber.Ctx) {
+		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+			{"ok", 0},
+			{"error", "404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again."},
+		}))
+		c.SendStatus(fiber.StatusNotFound)
+	})
+
+	// Start listening
+	lib.App.Srv.Listen(lib.App.Config.FiberPort)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -17,10 +17,10 @@ type Worker struct {
 func NewWorker(id int, workerQueue chan chan YouTubeVideo) Worker {
 	// Create and return the worker.
 	worker := Worker{
-		ID: id,
-		Work: make(chan YouTubeVideo),
+		ID:          id,
+		Work:        make(chan YouTubeVideo),
 		WorkerQueue: workerQueue,
-		QuitChan: make(chan bool),
+		QuitChan:    make(chan bool),
 	}
 
 	return worker
@@ -35,19 +35,19 @@ func (w *Worker) Start() {
 			w.WorkerQueue <- w.Work
 
 			select {
-				case video := <-w.Work:
-					// Receive a video to download
-					log.Printf("worker%d: Started downloading video %s", w.ID, video.VideoId)
-					var downloaded = make(chan bool)
-					go video.Download(downloaded)
-					value := <- downloaded
-					if value == false {
-						log.Printf("worker%d: Error in downloading video %s", w.ID, video.VideoId)
-					}
-					log.Printf("worker%d: Video %s downloaded", w.ID, video.VideoId)
-				case <-w.QuitChan:
-					log.Printf("worker%d stopping\n", w.ID)
-					return
+			case video := <-w.Work:
+				// Receive a video to download
+				log.Printf("worker%d: Started downloading video %s", w.ID, video.VideoId)
+				var downloaded = make(chan bool)
+				go video.Download(downloaded)
+				value := <-downloaded
+				if value == false {
+					log.Printf("worker%d: Error in downloading video %s", w.ID, video.VideoId)
+				}
+				log.Printf("worker%d: Video %s downloaded", w.ID, video.VideoId)
+			case <-w.QuitChan:
+				log.Printf("worker%d stopping\n", w.ID)
+				return
 			}
 		}
 	}()
@@ -72,8 +72,8 @@ func StartDispatcher(nworkers int) {
 
 	// Now, create all of workers
 	for i := 0; i < nworkers; i++ {
-		log.Printf("Starting worker %v\n", i + 1)
-		worker := NewWorker(i + 1, WorkerQueue)
+		log.Printf("Starting worker %v\n", i+1)
+		worker := NewWorker(i+1, WorkerQueue)
 		worker.Start()
 	}
 
@@ -81,7 +81,7 @@ func StartDispatcher(nworkers int) {
 		for {
 			select {
 			case video := <-VideoQueue:
-				worker := <- WorkerQueue
+				worker := <-WorkerQueue
 				worker <- video
 			}
 		}

@@ -2,10 +2,10 @@ package lib
 
 import (
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
+	"github.com/gofiber/fiber"
 	"github.com/minio/minio-go/v6"
 	"github.com/rylio/ytdl"
 	"github.com/youoffcrawler/config"
-	"github.com/gofiber/fiber"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -18,7 +18,6 @@ type Application struct {
 	MinioClient   *minio.Client
 	ES            *elasticsearch7.Client
 	Srv           *fiber.App
-
 }
 
 // Exported pointer to be accessible from entire project
