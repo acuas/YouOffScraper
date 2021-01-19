@@ -9,8 +9,8 @@ import (
 	"time"
 
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
-	"github.com/gofiber/fiber"
-	"github.com/gofiber/fiber/middleware"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware"
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v6"
 	zerolog "github.com/rs/zerolog/log"
@@ -116,37 +116,34 @@ func main() {
 	lib.App.Srv.Use(middleware.Logger())
 
 	// Enable recovering from panic
-	lib.App.Srv.Settings.ErrorHandler = func(c *fiber.Ctx, err error) {
+	lib.App.Srv.Settings.ErrorHandler = func(c *fiber.Ctx, err error) error {
 		log.Println(err.Error())
-		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+		c.Status(fiber.StatusInternalServerError).JSON(NewOrderedMapFromKVPairs([]*KVPair{
 			{Key: "ok", Value: 0},
 			{Key: "error", Value: err.Error()},
 		}))
-		c.SendStatus(fiber.StatusInternalServerError)
 	}
 
 	lib.App.Srv.Use(middleware.Recover())
 
-	lib.App.Srv.Get("/", func(c *fiber.Ctx) {
-		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+	lib.App.Srv.Get("/", func(c *fiber.Ctx) error {
+		c.Status(fiber.StatusOK).JSON(NewOrderedMapFromKVPairs([]*KVPair{
 			{Key: "ok", Value: 1},
 			{Key: "data", Value: NewOrderedMapFromKVPairs([]*KVPair{
 				{Key: "name", Value: "api"},
 				{Key: "path", Value: "/api"},
 			})},
 		}))
-		c.SendStatus(fiber.StatusOK)
 	})
 
-	lib.App.Srv.Get("/api", func(c *fiber.Ctx) {
-		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+	lib.App.Srv.Get("/api", func(c *fiber.Ctx) error {
+		c.Status(fiber.StatusOK).JSON(NewOrderedMapFromKVPairs([]*KVPair{
 			{Key: "ok", Value: 1},
 			{Key: "data", Value: NewOrderedMapFromKVPairs([]*KVPair{
 				{Key: "name", Value: "v1"},
 				{Key: "path", Value: "/v1"},
 			})},
 		}))
-		c.SendStatus(fiber.StatusOK)
 	})
 
 	// Organize the API using a Group
@@ -156,12 +153,12 @@ func main() {
 	V1(api)
 
 	// 404 Handler
-	lib.App.Srv.Use(func(c *fiber.Ctx) {
-		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
-			{"ok", 0},
-			{"error", "404 Not Found: The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again."},
+	lib.App.Srv.Use(func(c *fiber.Ctx) error {
+		c.Status(fiber.StatusNotFound).JSON(NewOrderedMapFromKVPairs([]*KVPair{
+			{Key: "ok", Value: 0},
+			{Key: "error", Value: "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again."},
+			{Key: "status_code", Value: 404},
 		}))
-		c.SendStatus(fiber.StatusNotFound)
 	})
 
 	// Start listening

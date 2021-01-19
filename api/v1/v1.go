@@ -12,7 +12,7 @@ func V1(api *fiber.Group) {
 	v1 := api.Group("/v1")
 
 	v1.Get("/", func(c *fiber.Ctx) {
-		c.JSON(NewOrderedMapFromKVPairs([]*KVPair{
+		c.Status(fiber.StatusOK).JSON(NewOrderedMapFromKVPairs([]*KVPair{
 			{Key: "ok", Value: 1},
 			{Key: "data", Value: NewOrderedMapFromKVPairs([]*KVPair{
 				{Key: "name", Value: "scrape"},
@@ -24,7 +24,6 @@ func V1(api *fiber.Group) {
 				})},
 			})},
 		}))
-		c.SendStatus(fiber.StatusOK)
 	})
 
 	v1.Post("/scrape", func(c *fiber.Ctx) {
