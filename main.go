@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	. "github.com/acuas/YouOffScraper/api/v1"
+	"github.com/acuas/YouOffScraper/config"
+	"github.com/acuas/YouOffScraper/lib"
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware"
@@ -15,9 +18,6 @@ import (
 	"github.com/minio/minio-go/v6"
 	zerolog "github.com/rs/zerolog/log"
 	"github.com/rylio/ytdl"
-	. "github.com/youoffcrawler/api/v1"
-	"github.com/youoffcrawler/config"
-	"github.com/youoffcrawler/lib"
 	. "gitlab.com/c0b/go-ordered-json"
 )
 

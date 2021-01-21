@@ -1,6 +1,10 @@
 package storage
 
-import "fmt"
+import (
+	"fmt"
+
+	ucfg "github.com/elastic/go-ucfg"
+)
 
 // Storage is the interface common to all storage
 type Storage interface {
@@ -10,25 +14,27 @@ type Storage interface {
 	Upload(string) error
 }
 
-// register functions creating new Storage instances.
-var registry = make(map[string]Storage)
+//
+type Factory = func(config *ucfg.Config) (Storage, error)
 
-func Register(name string, storage Storage) error {
+var registry = make(map[string]Factory)
+
+func Register(name string, factory Factory) error {
 	if name == "" {
 		return fmt.Errorf("Error registering storage: name cannot be empty")
 	}
-	if storage == nil {
+	if factory == nil {
 		return fmt.Errorf("Error registering storage '%v': factory cannot be empty", name)
 	}
 	if _, exists := registry[name]; exists {
 		return fmt.Errorf("Error registering storage '%v': already registered", name)
 	}
 
-	registry[name] = storage
+	registry[name] = factory
 	return nil
 }
 
-func GetStorage(name string) (Storage, error) {
+func GetFactory(name string) (Factory, error) {
 	if _, exists := registry[name]; !exists {
 		return nil, fmt.Errorf("Error creating storage. No such storage type exists: '%v'", name)
 	}
