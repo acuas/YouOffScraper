@@ -11,7 +11,7 @@ type Storage interface {
 	// Check if a file exists
 	FileExists(path string) bool
 	// Upload a file to the storage
-	Upload(string) error
+	Upload(name, path string) error
 }
 
 //

@@ -1,9 +1,11 @@
 package minio
 
 import (
+	"os"
+
 	"github.com/acuas/YouOffScraper/storage"
 	ucfg "github.com/elastic/go-ucfg"
-	v6 "github.com/minio/minio-go/v6"
+	min "github.com/minio/minio-go/v6"
 )
 
 func init() {
@@ -15,7 +17,7 @@ func init() {
 
 type minio struct {
 	config minioConfig
-	client *v6.Client
+	client *min.Client
 }
 
 func NewMinio(config *ucfg.Config) (storage.Storage, error) {
@@ -25,7 +27,7 @@ func NewMinio(config *ucfg.Config) (storage.Storage, error) {
 		return nil, err
 	}
 
-	minio.client, err = v6.New(
+	minio.client, err = min.New(
 		minio.config.Endpoint,
 		minio.config.AccessKeyID,
 		minio.config.SecretAccessKey,
@@ -50,9 +52,34 @@ func NewMinio(config *ucfg.Config) (storage.Storage, error) {
 }
 
 func (m *minio) FileExists(path string) bool {
+	_, err := m.client.StatObject(
+		m.config.BucketName,
+		path,
+		min.StatObjectOptions{},
+	)
+	if err != nil {
+		return false
+	}
 	return true
 }
 
-func (m *minio) Upload(path string) error {
-	return nil
+func (m *minio) Upload(name, path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	fileStat, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	_, err = m.client.PutObject(
+		m.config.BucketName,
+		name,
+		file,
+		fileStat.Size(),
+		min.PutObjectOptions{},
+	)
+	return err
 }
