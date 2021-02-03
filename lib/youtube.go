@@ -6,9 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/minio/minio-go/v6"
-	"google.golang.org/api/option"
-	"google.golang.org/api/youtube/v3"
 	"log"
 	"net/url"
 	"os"
@@ -16,6 +13,10 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/minio/minio-go/v6"
+	"google.golang.org/api/option"
+	"google.golang.org/api/youtube/v3"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -137,6 +138,7 @@ func (video *YouTubeVideo) Download(finished chan bool) error {
 
 	// Index video in elasticsearch
 	indexObject, err := json.Marshal(video)
+	// TODO: ELastic must be removed
 	res, err := App.ES.Index(
 		App.Config.EsIndex,
 		strings.NewReader(string(indexObject)),
