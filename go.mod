@@ -7,10 +7,13 @@ require (
 	github.com/elastic/go-ucfg v0.8.3
 	github.com/go-ini/ini v1.62.0 // indirect
 	github.com/gofiber/fiber/v2 v2.3.3 // indirect
+	github.com/google/go-cmp v0.5.5
 	github.com/joho/godotenv v1.3.0 // indirect
+	github.com/kkdai/youtube v1.2.4
 	github.com/minio/minio-go v6.0.14+incompatible // indirect
 	github.com/minio/minio-go/v6 v6.0.57
 	github.com/rs/zerolog v1.20.0 // indirect
 	gitlab.com/c0b/go-ordered-json v0.0.0-20201030195603-febf46534d5a // indirect
+	google.golang.org/api v0.41.0
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

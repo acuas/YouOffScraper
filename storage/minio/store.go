@@ -51,7 +51,7 @@ func NewMinio(config *ucfg.Config) (storage.Storage, error) {
 	return minio, nil
 }
 
-func (m *minio) FileExists(path string) bool {
+func (m minio) FileExists(path string) bool {
 	_, err := m.client.StatObject(
 		m.config.BucketName,
 		path,
@@ -63,7 +63,7 @@ func (m *minio) FileExists(path string) bool {
 	return true
 }
 
-func (m *minio) Upload(name, path string) error {
+func (m minio) Upload(name, path string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
