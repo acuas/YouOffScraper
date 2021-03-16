@@ -1,23 +1,6 @@
 version: "3.7"
 
 services:
-  app:
-    image: youoffcrawler:0.0.1
-    container_name: youoffcrawler
-    build: .
-    environment:
-      - GOPATH=/go/src/github.com/youoffcrawler/.go
-    command:
-      - "sleep"
-      - "864000"
-    volumes:
-      - ./:/go/src/github.com/youoffcrawler
-    ports:
-      - 0.0.0.0:8000:8000
-    networks:
-      development:
-        aliases:
-          - "youoff"
   minio:
     image: minio/minio:latest
     container_name: minio

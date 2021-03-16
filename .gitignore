@@ -5,3 +5,4 @@ tmp
 .air.linux.conf
 .env
 Movies
+config.yaml

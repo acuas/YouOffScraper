@@ -211,7 +211,7 @@ func TestDownload(t *testing.T) {
 		t.Fatalf("error creating a new video: %v", err.Error())
 	}
 
-	err = testVideo.Download()
+	_, err = testVideo.Download()
 	if err != nil {
 		t.Fatalf("error downloading video: %v", err.Error())
 	}

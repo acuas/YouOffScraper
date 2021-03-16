@@ -31,10 +31,10 @@ func NewVideo(
 	}, nil
 }
 
-func (v Video) Download() error {
+func (v Video) Download() (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
-		return err
+		return "", err
 	}
 	exPath := filepath.Dir(ex)
 	currentDir := fmt.Sprintf("%v/Videos", exPath)
@@ -42,7 +42,7 @@ func (v Video) Download() error {
 	y := ytdl.NewYoutube(true, false)
 	err = y.DecodeURL(fmt.Sprintf("https://www.youtube.com/watch?v=%v", v.VideoID))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	err = y.StartDownload(
@@ -52,5 +52,5 @@ func (v Video) Download() error {
 		0,
 	)
 
-	return err
+	return fmt.Sprintf("%s/%s", currentDir, fmt.Sprintf("%s-%s.mp4", v.ChannelID, v.VideoID)), err
 }
