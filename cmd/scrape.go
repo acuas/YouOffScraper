@@ -1,8 +1,9 @@
 package cmd
 
 import (
-	"fmt"
+	"log"
 
+	"github.com/acuas/YouOffScraper/cmd/instance"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +16,14 @@ var scrapeCmd = &cobra.Command{
 	Long:  `TODO`,
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("scrape called")
+		cfg, err := cmd.Flags().GetString("config")
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = instance.Run(cfg, args[0])
+		if err != nil {
+			log.Fatal(err)
+		}
 	},
 }
 

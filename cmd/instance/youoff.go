@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime"
+	"sync"
 
 	youtube "github.com/acuas/YouOffScraper/YouTube"
 	"github.com/acuas/YouOffScraper/storage"
@@ -80,8 +82,19 @@ func launch(youoff *YouOff) error {
 	}
 	ctx, cancel := context.WithCancel(youoff.Ctx)
 	defer cancel()
+
 	// launch pipeline
-	uploadVideo(youoff, ctx, downloadVideo(ctx, retrieveVideos(ctx, playlist)))
+	videoStream := retrieveVideos(ctx, playlist)
+	numWorkers := runtime.NumCPU()
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			uploadVideo(youoff, ctx, downloadVideo(ctx, videoStream))
+		}()
+	}
+	wg.Wait()
 
 	return nil
 }
@@ -117,7 +130,10 @@ func downloadVideo(ctx context.Context, videoStream <-chan youtube.Video) <-chan
 			select {
 			case <-ctx.Done():
 				return
-			case v := <-videoStream:
+			case v, ok := <-videoStream:
+				if !ok {
+					return
+				}
 				log.Printf("Downloading video: %v\n", v.Title)
 				path, err := v.Download()
 				if err != nil {
@@ -139,7 +155,11 @@ func uploadVideo(youoff *YouOff, ctx context.Context, pathStream <-chan string) 
 		select {
 		case <-ctx.Done():
 			return
-		case path := <-pathStream:
+		case path, ok := <-pathStream:
+			if !ok {
+				return
+			}
+			log.Printf("Uploaded video: %v\n", path)
 			youoff.Storage.Upload(path, path)
 		}
 	}

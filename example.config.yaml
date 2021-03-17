@@ -1,0 +1,10 @@
+storage:
+  minio:
+    endpoint: localhost:9000
+    access_key_id: acces_key_development
+    secret_access_key: secret_key_development
+    use_ssl: false
+    bucket_name: testbucket
+    bucket_region: ro-south
+youtube:
+  api_key: your_youtube_data_api_v3_key

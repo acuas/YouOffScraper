@@ -39,7 +39,7 @@ func (v Video) Download() (string, error) {
 	exPath := filepath.Dir(ex)
 	currentDir := fmt.Sprintf("%v/Videos", exPath)
 
-	y := ytdl.NewYoutube(true, false)
+	y := ytdl.NewYoutube(false, false)
 	err = y.DecodeURL(fmt.Sprintf("https://www.youtube.com/watch?v=%v", v.VideoID))
 	if err != nil {
 		return "", err

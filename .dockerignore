@@ -8,3 +8,4 @@ docker-compose.yml
 .env
 Movies/
 *.test
+main
