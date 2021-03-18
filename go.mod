@@ -8,6 +8,8 @@ require (
 	github.com/kkdai/youtube v1.2.4
 	github.com/minio/minio-go/v6 v6.0.57
 	github.com/spf13/cobra v1.1.3
+	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/zap v1.16.0
 	golang.org/x/sys v0.0.0-20210315160823-c6e025ad8005 // indirect
 	google.golang.org/api v0.41.0
 	gopkg.in/ini.v1 v1.62.0 // indirect

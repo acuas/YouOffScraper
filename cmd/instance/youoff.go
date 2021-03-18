@@ -159,8 +159,8 @@ func uploadVideo(youoff *YouOff, ctx context.Context, pathStream <-chan string) 
 			if !ok {
 				return
 			}
-			log.Printf("Uploaded video: %v\n", path)
 			youoff.Storage.Upload(path, path)
+			log.Printf("Uploaded video: %v\n", path)
 		}
 	}
 }
