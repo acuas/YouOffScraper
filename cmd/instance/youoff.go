@@ -3,25 +3,29 @@ package instance
 import (
 	"context"
 	"fmt"
-	"log"
 	"runtime"
 	"sync"
 
 	youtube "github.com/acuas/YouOffScraper/YouTube"
 	"github.com/acuas/YouOffScraper/storage"
+	"github.com/acuas/YouOffScraper/utils"
+	"go.uber.org/zap"
+
 	ucfg "github.com/elastic/go-ucfg"
 	"github.com/elastic/go-ucfg/yaml"
 )
 
+var log *zap.SugaredLogger
+
 type YouOffConfig struct {
-	Storage *ucfg.Config `config:"storage"`
-	Youtube *ucfg.Config `config:"youtube"`
+	Storage  *ucfg.Config `config:"storage"`
+	Youtube  *ucfg.Config `config:"youtube"`
+	Loggging *ucfg.Config `config:"logging"`
 }
 
 type YouOff struct {
 	Ctx context.Context
 
-	// TODO: Add logger here
 	Storage storage.Storage
 	URL     string
 }
@@ -52,6 +56,13 @@ func Run(cpath, URL string) error {
 		return fmt.Errorf("cannot create storage %v because an error occured: %v", storageTypes[0], err.Error())
 	}
 
+	// logging configuration
+	utils.ConfigureLogger(youOffConfig.Loggging)
+	log, err = utils.NewLogger("instance")
+	if err != nil {
+		return fmt.Errorf("error creating a new logger: %v", err.Error())
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -71,6 +82,7 @@ func Run(cpath, URL string) error {
 }
 
 func launch(youoff *YouOff) error {
+	log.Info("launching youoff...")
 	channel, err := youtube.NewChannel(youoff.URL)
 	if err != nil {
 		return err
@@ -86,8 +98,10 @@ func launch(youoff *YouOff) error {
 	// launch pipeline
 	videoStream := retrieveVideos(ctx, playlist)
 	numWorkers := runtime.NumCPU()
+	log.Debugf("youoff will use %v workers!", numWorkers)
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
+		log.Debugf("starting worker %d...", i)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -95,6 +109,7 @@ func launch(youoff *YouOff) error {
 		}()
 	}
 	wg.Wait()
+	log.Info("stopping youoff...")
 
 	return nil
 }
@@ -106,8 +121,7 @@ func retrieveVideos(ctx context.Context, playlist *youtube.Playlist) <-chan yout
 		for playlist.HasNextPage() {
 			videos, err := playlist.GetNextVideos()
 			if err != nil {
-				// TODO: handle this error
-				log.Println(err)
+				log.Errorf("error getting next videos from a playlist: %v", err.Error())
 			}
 
 			for _, v := range videos {
@@ -134,10 +148,10 @@ func downloadVideo(ctx context.Context, videoStream <-chan youtube.Video) <-chan
 				if !ok {
 					return
 				}
-				log.Printf("Downloading video: %v\n", v.Title)
+				log.Infof("Downloading video: %v\n", v.Title)
 				path, err := v.Download()
 				if err != nil {
-					log.Printf("Error downloading video: %v", err.Error())
+					log.Errorf("Error downloading video: %v", err.Error())
 				}
 				select {
 				case <-ctx.Done():
@@ -160,7 +174,7 @@ func uploadVideo(youoff *YouOff, ctx context.Context, pathStream <-chan string) 
 				return
 			}
 			youoff.Storage.Upload(path, path)
-			log.Printf("Uploaded video: %v\n", path)
+			log.Infof("Uploaded video: %v\n", path)
 		}
 	}
 }
